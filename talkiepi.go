@@ -1,4 +1,4 @@
-package talkiepi
+package zl_mumble
 
 import (
 	"crypto/tls"
@@ -10,10 +10,13 @@ import (
 
 // Raspberry Pi GPIO pin assignments (CPU pin definitions)
 const (
-	OnlineLEDPin       uint = 18
-	ParticipantsLEDPin uint = 23
-	TransmitLEDPin     uint = 24
-	ButtonPin          uint = 25
+	SmallOnlineLEDPin       uint = 6
+	SmallParticipantsLEDPin uint = 7
+	BigParticipantsLEDPin   uint = 17
+	SmallTransmitLEDPin     uint = 8
+	BigTransmitLEDPin       uint = 4
+	TransmitButtonPin       uint = 18
+	TestButtonPin           uint = 14
 )
 
 type Talkiepi struct {
@@ -30,11 +33,21 @@ type Talkiepi struct {
 	ChannelName    string
 	IsConnected    bool
 	IsTransmitting bool
+	IsTesting      bool
 
-	GPIOEnabled     bool
-	OnlineLED       gpio.Pin
-	ParticipantsLED gpio.Pin
-	TransmitLED     gpio.Pin
-	Button          gpio.Pin
-	ButtonState     uint
+	ParticipantCount int
+
+	PttStartFile string
+	PttStopFile	 string
+
+	GPIOEnabled          bool
+	SmallOnlineLED       gpio.Pin
+	SmallParticipantsLED gpio.Pin
+	BigParticipantsLED   gpio.Pin
+	SmallTransmitLED     gpio.Pin
+	BigTransmitLED       gpio.Pin
+	TransmitButton       gpio.Pin
+	TransmitButtonState  uint
+	TestButton           gpio.Pin
+	TestButtonState      uint
 }

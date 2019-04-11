@@ -1,4 +1,4 @@
-package talkiepi
+package zl_mumble
 
 import (
 	"fmt"
@@ -22,7 +22,7 @@ func (b *Talkiepi) Init() {
 }
 
 func (b *Talkiepi) CleanUp() {
-	b.Client.Disconnect()
+	_ = b.Client.Disconnect()
 	b.LEDOffAll()
 }
 
@@ -41,7 +41,7 @@ func (b *Talkiepi) Connect() {
 
 func (b *Talkiepi) ReConnect() {
 	if b.Client != nil {
-		b.Client.Disconnect()
+		_ = b.Client.Disconnect()
 	}
 
 	if b.ConnectAttempts < 100 {
@@ -51,7 +51,7 @@ func (b *Talkiepi) ReConnect() {
 		}()
 		return
 	} else {
-		fmt.Fprintf(os.Stderr, "Unable to connect, giving up\n")
+		_, _ = fmt.Fprintf(os.Stderr, "Unable to connect, giving up\n")
 		os.Exit(1)
 	}
 }
@@ -59,11 +59,11 @@ func (b *Talkiepi) ReConnect() {
 func (b *Talkiepi) OpenStream() {
 	// Audio
 	if os.Getenv("ALSOFT_LOGLEVEL") == "" {
-		os.Setenv("ALSOFT_LOGLEVEL", "0")
+		_ = os.Setenv("ALSOFT_LOGLEVEL", "0")
 	}
 
 	if stream, err := gumbleopenal.New(b.Client); err != nil {
-		fmt.Fprintf(os.Stderr, "Stream open error (%s)\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Stream open error (%s)\n", err)
 		os.Exit(1)
 	} else {
 		b.Stream = stream
@@ -86,10 +86,15 @@ func (b *Talkiepi) TransmitStart() {
 
 	b.IsTransmitting = true
 
-	// turn on our transmit LED
-	b.LEDOn(b.TransmitLED)
+	_ = PlayWavLocal(b.PttStartFile)
 
-	b.Stream.StartSource()
+	// turn on our transmit LED
+	if b.IsTesting == false {
+		b.LEDOn(b.SmallTransmitLED)
+		b.LEDOn(b.BigTransmitLED)
+	}
+
+	_ = b.Stream.StartSource()
 }
 
 func (b *Talkiepi) TransmitStop() {
@@ -97,11 +102,48 @@ func (b *Talkiepi) TransmitStop() {
 		return
 	}
 
-	b.Stream.StopSource()
+	_ = b.Stream.StopSource()
 
-	b.LEDOff(b.TransmitLED)
+	if b.IsTesting == false {
+		b.LEDOff(b.SmallTransmitLED)
+		b.LEDOff(b.BigTransmitLED)
+	}
+
+	_ = PlayWavLocal(b.PttStopFile)
 
 	b.IsTransmitting = false
+}
+
+func (b *Talkiepi) TestStart() {
+	b.IsTesting = true
+
+	if b.IsConnected == false {
+		b.LEDOn(b.SmallOnlineLED)
+	}
+	if b.ParticipantCount < 2 {
+		b.LEDOn(b.SmallParticipantsLED)
+		b.LEDOn(b.BigParticipantsLED)
+	}
+	if b.IsTransmitting == false {
+		b.LEDOn(b.SmallTransmitLED)
+		b.LEDOn(b.BigTransmitLED)
+	}
+}
+
+func (b *Talkiepi) TestStop() {
+	if b.IsConnected == false {
+		b.LEDOff(b.SmallOnlineLED)
+	}
+	if b.ParticipantCount < 2 {
+		b.LEDOff(b.SmallParticipantsLED)
+		b.LEDOff(b.BigParticipantsLED)
+	}
+	if b.IsTransmitting == false {
+		b.LEDOff(b.SmallTransmitLED)
+		b.LEDOff(b.BigTransmitLED)
+	}
+
+	b.IsTesting = false
 }
 
 func (b *Talkiepi) OnConnect(e *gumble.ConnectEvent) {
@@ -111,7 +153,9 @@ func (b *Talkiepi) OnConnect(e *gumble.ConnectEvent) {
 
 	b.IsConnected = true
 	// turn on our online LED
-	b.LEDOn(b.OnlineLED)
+	if b.IsTesting == false {
+		b.LEDOn(b.SmallOnlineLED)
+	}
 
 	fmt.Printf("Connected to %s (%d)\n", b.Client.Conn.RemoteAddr(), b.ConnectAttempts)
 	if e.WelcomeMessage != nil {
@@ -131,11 +175,12 @@ func (b *Talkiepi) OnDisconnect(e *gumble.DisconnectEvent) {
 	}
 
 	b.IsConnected = false
+	b.ParticipantCount = 0
 
 	// turn off our LEDs
-	b.LEDOff(b.OnlineLED)
-	b.LEDOff(b.ParticipantsLED)
-	b.LEDOff(b.TransmitLED)
+	if b.IsTesting == false {
+		b.LEDOffAll()
+	}
 
 	if reason == "" {
 		fmt.Printf("Connection to %s disconnected, attempting again in 10 seconds...\n", b.Address)
@@ -161,14 +206,20 @@ func (b *Talkiepi) ParticipantLEDUpdate() {
 
 	// If we have more than just ourselves in the channel, turn on the participants LED, otherwise, turn it off
 
-	var participantCount = len(b.Client.Self.Channel.Users)
+	b.ParticipantCount = len(b.Client.Self.Channel.Users)
 
-	if participantCount > 1 {
-		fmt.Printf("Channel '%s' has %d participants\n", b.Client.Self.Channel.Name, participantCount)
-		b.LEDOn(b.ParticipantsLED)
+	if b.ParticipantCount > 1 {
+		fmt.Printf("Channel '%s' has %d participants\n", b.Client.Self.Channel.Name, b.ParticipantCount)
+		if b.IsTesting == false {
+			b.LEDOn(b.SmallParticipantsLED)
+			b.LEDOn(b.BigParticipantsLED)
+		}
 	} else {
 		fmt.Printf("Channel '%s' has no other participants\n", b.Client.Self.Channel.Name)
-		b.LEDOff(b.ParticipantsLED)
+		if b.IsTesting == false {
+			b.LEDOff(b.SmallParticipantsLED)
+			b.LEDOff(b.BigParticipantsLED)
+		}
 	}
 }
 

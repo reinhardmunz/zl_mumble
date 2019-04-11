@@ -1,4 +1,4 @@
-package talkiepi
+package zl_mumble
 
 import (
 	"fmt"
@@ -18,40 +18,65 @@ func (b *Talkiepi) initGPIO() {
 		b.GPIOEnabled = true
 	}
 
-	ButtonPinPullUp := rpio.Pin(ButtonPin)
-	ButtonPinPullUp.PullUp()
+	TransmitButtonPinPullUp := rpio.Pin(TransmitButtonPin)
+	TransmitButtonPinPullUp.PullUp()
+	TestButtonPinPullUp := rpio.Pin(TestButtonPin)
+	TestButtonPinPullUp.PullUp()
 
-	rpio.Close()
+	_ = rpio.Close()
 
 	// unfortunately the gpio watcher stuff doesnt work for me in this context, so we have to poll the button instead
-	b.Button = gpio.NewInput(ButtonPin)
+	b.TransmitButton = gpio.NewInput(TransmitButtonPin)
 	go func() {
 		for {
-			currentState, err := b.Button.Read()
+			currentState, err := b.TransmitButton.Read()
 
-			if currentState != b.ButtonState && err == nil {
-				b.ButtonState = currentState
+			if currentState != b.TransmitButtonState && err == nil {
+				b.TransmitButtonState = currentState
 
 				if b.Stream != nil {
-					if b.ButtonState == 1 {
-						fmt.Printf("Button is released\n")
+					if b.TransmitButtonState == 1 {
+						fmt.Printf("Transmit-Button is released\n")
 						b.TransmitStop()
 					} else {
-						fmt.Printf("Button is pressed\n")
+						fmt.Printf("Transmit-Button is pressed\n")
 						b.TransmitStart()
 					}
 				}
 
 			}
 
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
+
+	b.TestButton = gpio.NewInput(TestButtonPin)
+	go func() {
+		for {
+			currentState, err := b.TestButton.Read()
+
+			if currentState != b.TestButtonState && err == nil {
+				b.TestButtonState = currentState
+
+				if b.TestButtonState == 1 {
+					fmt.Printf("Test-Button is released\n")
+					b.TestStop()
+				} else {
+					fmt.Printf("Test-Button is pressed\n")
+					b.TestStart()
+				}
+			}
+
+			time.Sleep(200 * time.Millisecond)
 		}
 	}()
 
 	// then we can do our gpio stuff
-	b.OnlineLED = gpio.NewOutput(OnlineLEDPin, false)
-	b.ParticipantsLED = gpio.NewOutput(ParticipantsLEDPin, false)
-	b.TransmitLED = gpio.NewOutput(TransmitLEDPin, false)
+	b.SmallOnlineLED = gpio.NewOutput(SmallOnlineLEDPin, false)
+	b.SmallParticipantsLED = gpio.NewOutput(SmallParticipantsLEDPin, false)
+	b.BigParticipantsLED = gpio.NewOutput(BigParticipantsLEDPin, false)
+	b.SmallTransmitLED = gpio.NewOutput(SmallTransmitLEDPin, false)
+	b.BigTransmitLED = gpio.NewOutput(BigTransmitLEDPin, false)
 }
 
 func (b *Talkiepi) LEDOn(LED gpio.Pin) {
@@ -59,7 +84,7 @@ func (b *Talkiepi) LEDOn(LED gpio.Pin) {
 		return
 	}
 
-	LED.High()
+	_ = LED.High()
 }
 
 func (b *Talkiepi) LEDOff(LED gpio.Pin) {
@@ -67,7 +92,19 @@ func (b *Talkiepi) LEDOff(LED gpio.Pin) {
 		return
 	}
 
-	LED.Low()
+	_ = LED.Low()
+}
+
+func (b *Talkiepi) LEDOnAll() {
+	if b.GPIOEnabled == false {
+		return
+	}
+
+	b.LEDOn(b.SmallOnlineLED)
+	b.LEDOn(b.SmallParticipantsLED)
+	b.LEDOn(b.BigParticipantsLED)
+	b.LEDOn(b.SmallTransmitLED)
+	b.LEDOn(b.BigTransmitLED)
 }
 
 func (b *Talkiepi) LEDOffAll() {
@@ -75,7 +112,9 @@ func (b *Talkiepi) LEDOffAll() {
 		return
 	}
 
-	b.LEDOff(b.OnlineLED)
-	b.LEDOff(b.ParticipantsLED)
-	b.LEDOff(b.TransmitLED)
+	b.LEDOff(b.SmallOnlineLED)
+	b.LEDOff(b.SmallParticipantsLED)
+	b.LEDOff(b.BigParticipantsLED)
+	b.LEDOff(b.SmallTransmitLED)
+	b.LEDOff(b.BigTransmitLED)
 }
